@@ -1,0 +1,270 @@
+---------------------------------------------------------------------------------------------
+      name:  <unnamed>
+       log:  C:\Users\slee039\Dropbox\ECON 388\Data Assignment 3\Scripts\construct_data_log.t
+> xt
+  log type:  text
+ opened on:  10 Dec 2023, 18:46:38
+
+. clear
+
+. 
+. /*
+> 
+> NAME: Sam Lee
+> 
+> Data Assignment #3
+> 
+> This STATA code will merge in all the data sets and create a single file for data analysis.
+> 
+> 
+> ************************************
+> */
+. 
+. //NYT COVID-19 Mortality Data Set (2020)
+. import delimited "../Data/us-counties-2020.csv", varnames(1) clear
+(encoding automatically selected: ISO-8859-1)
+(6 vars, 884,737 obs)
+
+. 
+. //Each county's total mortality over 2020
+. collapse (sum) deaths, by(fips county state)
+
+. 
+. sort state county
+
+. save "../Data/county-deaths.dta", replace
+file ../Data/county-deaths.dta saved
+
+. 
+. //Load in U.S. Census Data
+. import excel "../Data/co-est2022-pop.xlsx", cellrange(A5:E3149) clear
+(5 vars, 3,145 obs)
+
+. 
+. rename A county_state
+
+. rename B est_2020
+
+. rename C pop_2020
+
+. rename D est_2021
+
+. rename E est_2022
+
+. drop est_*
+
+. 
+. //Drop the US Population
+. drop in 1
+(1 observation deleted)
+
+. 
+. //Extract state from the county_state
+. gen state = substr(county_state, index(county_state, ",") + 2, .)
+
+. 
+. //Extract County
+. gen county_temp = subinstr(subinstr(county_state, ".", "", 1), " County, " + state, "", 1)
+
+. 
+. // Extract county from the modified county_state
+. gen county_temp2 = regexs(1) if regexm(county_temp, "^(.*), " + state + "$")
+(2,999 missing values generated)
+
+. 
+. gen county = ""
+(3,144 missing values generated)
+
+. replace county = county_temp if missing(county_temp2)
+variable county was str1 now str17
+(2,999 real changes made)
+
+. replace county = county_temp2 if ~missing(county_temp2)
+variable county was str17 now str46
+(145 real changes made)
+
+. 
+. drop county_*
+
+. 
+. //Specific cases that failed to merge that need to be remedied
+. replace county = "Anchorage" if county == "Anchorage Municipality"
+(1 real change made)
+
+. replace county = "Yakutat plus Hoonah-Angoon" if county =="Yakutat City and Borough"
+(1 real change made)
+
+. replace county = "Bristol Bay plus Lake and Peninsula" if county == "Bristol Bay Borough"
+(1 real change made)
+
+. replace county = "DoÃ±a Ana" if county == "Doña Ana"
+(1 real change made)
+
+. //For Louisiana Counties
+. replace county = subinstr(county, " Parish", "", .)
+(64 real changes made)
+
+. 
+. //Create 2020 COVID-19 Mortality by Merging in NYT County Mortality and merging it with the
+>  U.S. Census Data
+. 
+. sort state county
+
+. merge 1:1 county state using "../Data/county-deaths.dta"
+(variable state was str20, now str24 to accommodate using data's values)
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                           165
+        from master                        18  (_merge==1)
+        from using                        147  (_merge==2)
+
+    Matched                             3,126  (_merge==3)
+    -----------------------------------------
+
+. 
+. sort state county
+
+. keep if _merge == 3
+(165 observations deleted)
+
+. drop _merge
+
+. 
+. //Deaths per 1000 
+. gen mortality_rate = deaths/(pop_2020/1000)
+
+. 
+. save "../Data/mortality.dta", replace
+file ../Data/mortality.dta saved
+
+. 
+. //Load in the Housing Price Data
+. import excel "../Data/HPI_AT_BDL_ZIP3.xlsx", firstrow clear
+(7 vars, 39,425 obs)
+
+. drop G
+
+. drop in 1/5
+(5 observations deleted)
+
+. 
+. rename HPIforThreeDigitZIPCodesA zip
+
+. rename B year
+
+. rename C pct_change
+
+. rename D hpi
+
+. rename E hpi_1990_base
+
+. rename F hpi_2000_base
+
+. 
+. drop in 1
+(1 observation deleted)
+
+. 
+. keep if year == "2021"
+(38,540 observations deleted)
+
+. 
+. save "../Data/housing_prices.dta", replace
+file ../Data/housing_prices.dta saved
+
+. 
+. //Load in ZIP-County Crosswalk
+. import delimited "../Data/zip-county.csv", varnames(1) clear
+(encoding automatically selected: ISO-8859-1)
+(5 vars, 216,940 obs)
+
+. rename geoid fips
+
+. gen zip3 = substr(string(zip), 1, 3)
+
+. 
+. keep if quarter == 4
+(162,680 observations deleted)
+
+. drop quarter
+
+. drop zip
+
+. rename zip3 zip
+
+. 
+. //Merge ZIP-County Crosswalk and 2021 Housing Price Data
+. merge m:1 zip using "../Data/housing_prices.dta"
+(variable zip was str3, now str1234 to accommodate using data's values)
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                           849
+        from master                       771  (_merge==1)
+        from using                         78  (_merge==2)
+
+    Matched                            53,489  (_merge==3)
+    -----------------------------------------
+
+. sort state city
+
+. keep if _merge == 3
+(849 observations deleted)
+
+. drop _merge
+
+. 
+. //Convert necessary columns to numeric
+. foreach var in pct_change hpi hpi_1990_base hpi_2000_base {
+  2.     destring `var', replace
+  3. }
+pct_change: all characters numeric; replaced as double
+(59 missing values generated)
+hpi: all characters numeric; replaced as double
+(59 missing values generated)
+hpi_1990_base: all characters numeric; replaced as double
+(2146 missing values generated)
+hpi_2000_base: all characters numeric; replaced as double
+(343 missing values generated)
+
+. drop state
+
+. 
+. //Merge it with 2020 COVID-19 Mortality Data
+. merge m:1 fips using "../Data/mortality.dta"
+
+    Result                      Number of obs
+    -----------------------------------------
+    Not matched                           992
+        from master                       987  (_merge==1)
+        from using                          5  (_merge==2)
+
+    Matched                            52,502  (_merge==3)
+    -----------------------------------------
+
+. keep if _merge == 3
+(992 observations deleted)
+
+. drop _merge
+
+. sort state county
+
+. 
+. //year is irrevelant at this stage
+. drop year
+
+. 
+. //Save the final data set for analysis
+. save "../Data/covid_housing.dta", replace
+(file ../Data/covid_housing.dta not found)
+file ../Data/covid_housing.dta saved
+
+. 
+. log close
+      name:  <unnamed>
+       log:  C:\Users\slee039\Dropbox\ECON 388\Data Assignment 3\Scripts\construct_data_log.t
+> xt
+  log type:  text
+ closed on:  10 Dec 2023, 18:46:44
+---------------------------------------------------------------------------------------------
