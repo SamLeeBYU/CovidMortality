@@ -1,0 +1,59 @@
+---
+title: "The Effect of COVID-19 Mortality on Per County Housing Prices"
+author: "Sam Lee"
+format: pdf
+editor: visual
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+
+housing.prices = read_csv("Data/housing_prices_full.csv")
+housing.prices.reshape = housing.prices %>% select(zip, year, hpi) %>%
+    pivot_wider(names_from = year, values_from = hpi, 
+                names_glue="{.value}_{year}")
+housing.prices.reshape[colnames(housing.prices.reshape)[!colSums(is.na(housing.prices.reshape)) > 0]] -> housing.prices.reshape
+
+hpi.years = rev(setdiff(colnames(housing.prices.reshape)[str_detect(colnames(housing.prices.reshape), "hpi")],
+                    c("hpi_2022", "hpi_2021")))
+
+for (hpi.year in c("hpi_2021", hpi.years)) {
+  values = c()
+  for(v in housing.prices.reshape[hpi.year]){
+    tryCatch({
+      values = c(values, parse_number(v))
+    }, error=function(e){
+      values = c(values, NA_real_)
+    })
+  }
+  #print(values)
+  housing.prices.reshape[hpi.year] = values
+}
+
+deltas = c()
+alpha = 0.2
+significant = T
+index = 1
+while(significant){
+  hpi.year.lm = lm(hpi_2021 ~ ., housing.prices.reshape[c("hpi_2021", hpi.years[1:index])])
+  deltas = c(deltas, summary(hpi.year.lm)$coefficients[2])
+  significant = all(summary(hpi.year.lm)$coefficients[2:(index+1),"Pr(>|t|)"] < alpha)
+  index = index + 1
+}
+
+ggplot(mapping=aes(x=1:(index-1), y=deltas))+
+  geom_point()+
+  geom_line()+
+  ylab(expression(delta))+
+  xlab("Cumulative # of Lags (Years Before 2021)")+
+  labs(title="Cumulative Lag Effect on 2021 HPI")+
+  theme_minimal()
+```
+
+## Econometric Model
+
+For year $t$, state $s$, and county $c$, we wish to estimate for $n$ # of states,
+
+(1) $\text{HPI}_{sct} = \beta_0+\beta_1\text{Mortality}_{sct}+\sum_{j=1}^{n-1}\beta_{j+1}I(\text{State}_s=j)+\sum_{p=1}^{4}\delta_{p}\text{HPI}_{sct-p}+\eta_{sct}$
+
+Where $\beta_1$ is the parameter of interest. Hence, since we are only interested in the effect that 2020 COVID-19 mortality had on 2021 per-county housing prices, setting $t=2021$ yields a regression on a cross-sectional data set.

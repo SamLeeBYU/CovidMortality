@@ -86,8 +86,22 @@ rename E hpi_1990_base
 rename F hpi_2000_base
 
 drop in 1
+drop pct_change hpi hpi_1990_base
+rename hpi_2000_base hpi
 
-keep if year == "2021"
+//Convert to numeric
+destring hpi, replace
+
+export delimited using "../Data/housing_prices_full.csv", replace
+
+destring year, replace
+//Only keep the lag variables in the model
+keep if year >= 2017 & year <= 2021
+
+//Reshape the data so we can to a m:1 merge later with zip-county crosswalk
+//We need to have each lagged HPI variable as its own column vector
+sort zip year
+reshape wide hpi, i(zip) j(year)
 
 save "../Data/housing_prices.dta", replace
 
@@ -96,6 +110,7 @@ import delimited "../Data/zip-county.csv", varnames(1) clear
 rename geoid fips
 gen zip3 = substr(string(zip), 1, 3)
 
+//Keep quarter 4 since it is the end of the year
 keep if quarter == 4
 drop quarter
 drop zip
@@ -107,11 +122,11 @@ sort state city
 keep if _merge == 3
 drop _merge
 
-//Convert necessary columns to numeric
-foreach var in pct_change hpi hpi_1990_base hpi_2000_base {
-    destring `var', replace
-}
+//This will be merged in with with the more descriptive state name from mortality.dta
 drop state
+
+//Transform HPI into the mean of the HPI from each county (as an average of the HPIs from each zip code)
+collapse (mean) hpi*, by(fips)
 
 //Merge it with 2020 COVID-19 Mortality Data
 merge m:1 fips using "../Data/mortality.dta"
@@ -119,10 +134,8 @@ keep if _merge == 3
 drop _merge
 sort state county
 
-//year is irrevelant at this stage
-drop year
-
 //Save the final data set for analysis
 save "../Data/covid_housing.dta", replace
+export delimited using "../Data/covid_housing.csv", replace
 
 log close

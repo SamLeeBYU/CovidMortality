@@ -3,7 +3,7 @@
        log:  C:\Users\slee039\Dropbox\ECON 388\Data Assignment 3\Scripts\construct_data_log.t
 > xt
   log type:  text
- opened on:  10 Dec 2023, 18:46:38
+ opened on:  11 Dec 2023, 17:52:21
 
 . clear
 
@@ -165,9 +165,44 @@ file ../Data/mortality.dta saved
 . drop in 1
 (1 observation deleted)
 
+. drop pct_change hpi hpi_1990_base
+
+. rename hpi_2000_base hpi
+
 . 
-. keep if year == "2021"
-(38,540 observations deleted)
+. //Convert to numeric
+. destring hpi, replace
+hpi: all characters numeric; replaced as double
+(366 missing values generated)
+
+. 
+. export delimited using "../Data/housing_prices_full.csv", replace
+file ../Data/housing_prices_full.csv saved
+
+. 
+. destring year, replace
+year: all characters numeric; replaced as int
+
+. //Only keep the lag variables in the model
+. keep if year >= 2017 & year <= 2021
+(35,024 observations deleted)
+
+. 
+. //Reshape the data so we can to a m:1 merge later with zip-county crosswalk
+. //We need to have each lagged HPI variable as its own column vector
+. sort zip year
+
+. reshape wide hpi, i(zip) j(year)
+(j = 2017 2018 2019 2020 2021)
+
+Data                               Long   ->   Wide
+-----------------------------------------------------------------------------
+Number of observations            4,395   ->   879         
+Number of variables                   3   ->   6           
+j variable (5 values)              year   ->   (dropped)
+xij variables:
+                                    hpi   ->   hpi2017 hpi2018 ... hpi2021
+-----------------------------------------------------------------------------
 
 . 
 . save "../Data/housing_prices.dta", replace
@@ -184,6 +219,7 @@ file ../Data/housing_prices.dta saved
 . gen zip3 = substr(string(zip), 1, 3)
 
 . 
+. //Keep quarter 4 since it is the end of the year
 . keep if quarter == 4
 (162,680 observations deleted)
 
@@ -215,20 +251,13 @@ file ../Data/housing_prices.dta saved
 . drop _merge
 
 . 
-. //Convert necessary columns to numeric
-. foreach var in pct_change hpi hpi_1990_base hpi_2000_base {
-  2.     destring `var', replace
-  3. }
-pct_change: all characters numeric; replaced as double
-(59 missing values generated)
-hpi: all characters numeric; replaced as double
-(59 missing values generated)
-hpi_1990_base: all characters numeric; replaced as double
-(2146 missing values generated)
-hpi_2000_base: all characters numeric; replaced as double
-(343 missing values generated)
-
+. //This will be merged in with with the more descriptive state name from mortality.dta
 . drop state
+
+. 
+. //Transform HPI into the mean of the HPI from each county (as an average of the HPIs from e
+> ach zip code)
+. collapse (mean) hpi*, by(fips)
 
 . 
 . //Merge it with 2020 COVID-19 Mortality Data
@@ -236,29 +265,27 @@ hpi_2000_base: all characters numeric; replaced as double
 
     Result                      Number of obs
     -----------------------------------------
-    Not matched                           992
-        from master                       987  (_merge==1)
+    Not matched                           107
+        from master                       102  (_merge==1)
         from using                          5  (_merge==2)
 
-    Matched                            52,502  (_merge==3)
+    Matched                             3,121  (_merge==3)
     -----------------------------------------
 
 . keep if _merge == 3
-(992 observations deleted)
+(107 observations deleted)
 
 . drop _merge
 
 . sort state county
 
 . 
-. //year is irrevelant at this stage
-. drop year
-
-. 
 . //Save the final data set for analysis
 . save "../Data/covid_housing.dta", replace
-(file ../Data/covid_housing.dta not found)
 file ../Data/covid_housing.dta saved
+
+. export delimited using "../Data/covid_housing.csv", replace
+file ../Data/covid_housing.csv saved
 
 . 
 . log close
@@ -266,5 +293,5 @@ file ../Data/covid_housing.dta saved
        log:  C:\Users\slee039\Dropbox\ECON 388\Data Assignment 3\Scripts\construct_data_log.t
 > xt
   log type:  text
- closed on:  10 Dec 2023, 18:46:44
+ closed on:  11 Dec 2023, 17:52:27
 ---------------------------------------------------------------------------------------------
