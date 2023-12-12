@@ -1,0 +1,220 @@
+---
+title: "Interpreting a Causal Effect for COVID-19 Mortality on Per-County Housing Prices"
+author: "Sam Lee"
+format: pdf
+editor: visual
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(gridExtra)
+
+covid.housing = read_csv("Data/covid_housing.csv")
+
+housing.prices = read_csv("Data/housing_prices_full.csv")
+```
+
+## Introduction
+
+In this analysis I seek to estimate the causal effect that 2020 COVID-19 mortality rates had on per-county housing prices in the United States in 2021. According to elementary economic theory, all else equal, when consumers of a good leave a market, demand decreases. This implies that prices decrease at every quantity demanded (Law of Demand). This theory may be grimly applied when we analyze COVID-19 mortality deaths from 2020. According to the Law of Demand, all else equal, we would assume that on average, housing prices would decrease given the decrease in the number of consumers in the housing market per county. Not only can this be empirically tested using econometric methods, but additionally, this could provide compelling evidence for why providing early care for COVID-related illnesses may have real economic benefits and impacts in external markets.
+
+## Data
+
+To estimate the effect that 2020 COVID-19 mortality rates had on per-county housing prices in 2021, I merged per-county COVID-19 mortality rates with the per-county housing prices. Per-county COVID-19 mortality rates was obtained from NYT's public database ( [https://github.com/nytimes/covid-19-data](https://github.com/nytimes/covid-19-data)). The [us-counties-2020.csv](https://github.com/SamLeeBYU/CovidMortality/blob/main/Data/us-counties-2020.csv) data set contains the fips code for each county and the corresponding death count. This was merged with data from the U.S. Census Bureau ([https://www.census.gov/data/tables/time-series/demo/popest/2020s-counties-total.html](https://www.census.gov/data/tables/time-series/demo/popest/2020s-counties-total.html)) to obtain the 2020 population totals for each county (see [co-est2022-pop.xlsx](https://github.com/SamLeeBYU/CovidMortality/blob/main/Data/co-est2022-pop.xlsx)). Mortality rate was then calculated as the death count for each county divided by the population for each county multiplied by 1000 (deaths per 1,000). This data set also contains the state for each county record, which will later be used to control for.
+
+NOTE: Due to the jurisdiction of large cities such as Kansas City and New York City, and other cities that cross county boundaries and count COVID deaths differently than other counties, city-specific COVID deaths for some cities are often denoted by the city-jurisdiction as opposed to being disaggregated by the counties within. Notwithstanding the housing prices that are certain to vary within these jurisdictions, this made it difficult to match COVID-19 mortality for these jurisdictions and per-county housing. As a result, these records were dropped. 
+
+I then merged per-county housing prices to with the mortality data. To do this, I used zip-level housing price data (see [HPI_AT_BDL_ZIP3.xlsx](https://github.com/SamLeeBYU/CovidMortality/blob/main/Data/HPI_AT_BDL_ZIP3.xlsx)) maintained by the Federal Finance Housing Agency (FHFA) ([https://www.fhfa.gov/DataTools/Downloads/Pages/House-Price-Index-Datasets.aspx](https://www.fhfa.gov/DataTools/Downloads/Pages/House-Price-Index-Datasets.aspx)) and merged it with data that mapped zip-codes in 2021 to the corresponding counties. I used HUD's ZIP-County Crosswalk [API](https://www.huduser.gov/portal/dataset/uspszip-api.html) to obtain the zip codes that correspond to each county. The Python script, [zip-county.py](https://github.com/SamLeeBYU/CovidMortality/blob/main/Scripts/zip-county.py), uses this API to compile [zip-county.csv](https://github.com/SamLeeBYU/CovidMortality/blob/main/Data/zip-county.csv). After combining these two data sets, the housing prices was condensed to create an average HPI (housing price index) for each county consisting of the HPIs from each zip code in each county. For the purposes of this analysis, to control for inflation, the HPI that's been adjusted for inflation using 2000 year as a base year was used instead of raw HPI. From here on out in this analysis, HPI will be used to refer to as this HPI that's been adjusted for inflation using 2000 as the base year.
+
+Additionally, $6$ lag variables on the 2021 HPI were constructed using The housing prices data. (See [A.1](#a1) for the selection process for the number of lag variables).   
+
+Merging the housing prices data set with the mortality data set yields the final data set for the econometric analysis: The response variable $\text{HPI}_{2021}$ will be measured on the independent metric of interest, $\text{Mortality Rate}$ for each county, and this will be controlled for using a series of state dummy variables and the $6$ lag variables on $\text{HPI}_{2021}$. This data set yielded a sample size = `r nrow(covid.housing)-8` counties with $n = 50$ states.
+
+#### Exploratory Data Analysis
+
+Summary Statistics of Key Numeric Variables:
+
+```{r echo=F}
+covid.factors = c(str_c("hpi", 2015:2021), "mortality_rate")
+
+formatted.factors <- gsub("_", " ", covid.factors)
+formatted.factors <- gsub("hpi", "HPI ", formatted.factors)
+formatted.factors <- tools::toTitleCase(formatted.factors)
+
+tibble(
+  Variable = formatted.factors,
+  Mean = sapply(covid.factors, function(x)mean(covid.housing[[x]], na.rm=T)) %>% round(2),
+  Median = sapply(covid.factors, function(x)median(covid.housing[[x]], na.rm=T)) %>% round(2),
+  SD = sapply(covid.factors, function(x)sd(covid.housing[[x]], na.rm=T)) %>% round(2),
+  Min = sapply(covid.factors, function(x)min(covid.housing[[x]], na.rm=T)) %>% round(2),
+  Max = sapply(covid.factors, function(x)max(covid.housing[[x]], na.rm=T)) %>% round(2)
+) %>% knitr::kable()
+```
+
+How COVID-19 Mortality Rates Compare Against $\text{HPI}_{2021}$
+
+```{r echo=F, warning=F}
+p1 = covid.housing %>% ggplot()+
+  geom_boxplot(aes(y=hpi2021))+
+  ylab(expression(HPI[2021]))+
+  theme_minimal()
+p2 = covid.housing %>% ggplot()+
+  geom_boxplot(aes(y=mortality_rate))+
+  theme_minimal()+
+  ylab("Mortality Rate (Deaths per 1,000")
+grid.arrange(p1, p2, ncol=2)
+```
+
+```{r echo=F, warning=FALSE, message=F}
+covid.housing %>% ggplot(mapping=aes(x=mortality_rate, y=hpi2021))+
+  geom_point()+
+  geom_smooth(color="#FDB863", se=F, method="lm")+
+  xlab("Mortality Rate (Deaths per 1,000)")+
+  ylab(expression(HPI[2021]))+
+  theme_minimal()+
+  labs(title="2020 COVID-19 Mortality vs. 2021 HPI")
+```
+
+Initial trends indicate that there's a general negative trend between mortality rate and $\text{HPI}_{2021}$.
+
+```{r fig.width=8, fig.height=8, echo=F, warning=F}
+covid.housing %>%
+  select(state, hpi2021, mortality_rate) %>% group_by(state) %>% summarize(
+    state = first(state),
+    hpi2021 = mean(hpi2021),
+    mortality_rate = mean(mortality_rate)
+  ) %>%
+  pivot_longer(cols = c("hpi2021", "mortality_rate"), 
+               values_to = "value", 
+               names_to = "label") %>%
+  ggplot(aes(state, value, fill = label)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.9)) +
+  labs(title="Mean HPI and Mortality Rates Across States", y = "", x='State') +
+  theme_minimal() +
+  theme(legend.position = "top") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  theme(legend.title = element_blank()) +
+  scale_fill_manual(name = "Legend", 
+                    values = c("hpi2021" = "#FDB863", "mortality_rate" = "#B2ABD2"),
+                    labels = c("hpi2021" = "Mean HPI 2021", "mortality_rate" = "Mean Mortality Rate (Deaths per 1,000)"))
+
+```
+
+This demonstrates the variability between states' $\text{HPI}_{2021}$ and COVID-19 mortality rates. The fact that the proportion of $\text{HPI}_{2021}$ and mortality rate varies drastically depending on state indicates that both mortality and $\text{HPI}_{2021}$ may depend on the state and state-specific policies. In econometric terms, we need to include state-specific fixed effects in our econometric model in order to further satisfy $E[\epsilon|X]=0$
+
+## Econometric Model
+
+It is hypothesized that there are unobserved effects in the data that are dependent upon each state ($s$) such that for each county ($c$) that we wish to estimate the COVID-19 mortality effect on per-county housing prices in 2021 ($\text{HPI}_{2021}$), the error term ($\epsilon$) can thus be represented by $\epsilon_{sc}=\alpha_s+\eta_{st}$. We will remedy this issue by using a fixed effects model by including $n-1$ dummy variables for $n$ states.
+
+Furthermore, due to the lagged effects in the model, the theoretical model incorporates some time effect $t$, where $t$ is the specified year. Including these lagged effects in the econometric model will make the estimate for the coefficient on COVID-19 mortality less biased since it will be ridden from the time-trends in HPI that occur due to the nature of time-series dependent data. Excluding the lags from model will likely lead to a biased coefficient on the estimated effect for mortality, as it would have encapsulated the effects of the lagged variables in $\eta_{sc}$ which would have otherwise been controlled for in the model. Since $\text{HPI}_{2021}$ is significantly dependent upon $\text{HPI}_{2021-1},...,\text{HPI}_{2021-P}$ (as shown in [A.1](#a1)), where $P$ is the number of lags in the model (in this analysis we let $P=6$), then since $\delta_p > 0 \quad \forall p \in \{1,...,P\}$, then the coefficient for mortality will be **overestimated** *if* the lag variables are excluded from the model.
+
+Hence, for year $t$, state $s$, and county $c$, we wish to estimate for $n$ # of states,
+
+(1) $\text{HPI}_{sct} = \beta_0+\beta_1\text{Mortality}_{sct-1}+\sum_{j=1}^{n-1}\beta_{j+1}I(\text{State}_s=j)+\sum_{p=1}^{6}\delta_{p}\text{HPI}_{sct-p}+\eta_{sct}$
+
+Where $\beta_1$ is the parameter of interest. Since we are only interested in the effect that 2020 COVID-19 mortality had on 2021 per-county housing prices, setting $t=2021$ yields a regression on a cross-sectional data set
+
+Since we include only $n-1$ dummy variables for $n$ # of states, $X'X$ will be full rank and thus invertible. Since we control for state effects using a fixed effects model we further satisfy the assumption that $E[\eta_{sc}|X]=0$. This assumption is more reasonably satisfied with the inclusion of lagged effects on $\text{HPI}_{sct=2021}$. Since these lagged effects significantly affect the main response, $\text{HPI}_{sct=2021}$, including them in the model will isolate the estimated causal effect for $\beta_1$.
+
+## Findings
+
+Using OLS to estimate $\beta_1$, we arrived at the following estimate (see [A.2](#a2) for full model output):
+
+```{r echo=F}
+covid.housing %>% mutate(
+  state = as.factor(state)
+) -> covid.housing
+covid.factors = c("mortality_rate", str_c("hpi", 2015:2021), "state")
+covid.lm = lm(hpi2021 ~ ., covid.housing[covid.factors])
+covid.table = summary(covid.lm)$coefficients %>% 
+  as_tibble()
+covid.table$Coefficient = covid.lm$coefficients %>% names()
+covid.table$Coefficient = gsub("hpi", "HPI ", covid.table$Coefficient)
+covid.table$Coefficient = str_replace(covid.table$Coefficient, "mortality_rate", "Mortality Rate")
+covid.table$Coefficient = gsub("state", "", covid.table$Coefficient)
+covid.table %>% setNames(c("Estimate", "Std. Error", "T.Value", "P.Value", "Coefficient")) -> covid.table
+
+covid.table %>% mutate(
+    Estimate = round(Estimate, 5),
+    `Std. Error` = round(`Std. Error`, 8),
+    T.Value = round(T.Value, 5),
+    P.Value = format(round(P.Value, 8), scientific=F)
+) -> covid.table
+
+covid.table[c("Coefficient", "Estimate", "Std. Error", "T.Value", "P.Value")] -> covid.table
+
+cbind(covid.table, round(confint(covid.lm), 5) %>% as_tibble()) -> covid.table
+
+covid.table %>% filter(Coefficient == "Mortality Rate") %>%
+  knitr::kable()
+```
+
+Adjusted $R^2$ = `r summary(covid.lm)$adj.r.squared`
+
+Controlling for the a state-fixed effects and lagged effects on $\text{HPI}_{sct=2021}$, the estimate for $\beta_1$ was found to be highly significant and negative.
+
+Holding all else constant, an additional COVID-19 mortality per 1,000  residents decreases the county-average 2021 housing price index by an 0.0031, on average.
+
+Holding all else constant, we are 95% confident that an additional COVID-19 mortality per 1,000 residents decreases the 2021 county-average housing price index between 0.0043 and 0.0019, on average. 
+
+## Conclusions
+
+The conclusions following the empirical analysis align with economic theory. On average, fewer consumers in the housing market lead to an average decrease in the price on average. Controlling for all other relevant effects, the increase in per-county COVID-19 mortality implies a decrease in per-county 2021 HPI, on average. Though the housing prices over the past six years have generally risen, there is significant evidence to believe that on the county-level, 2021 HPI would have risen higher if COVID-19 mortality could have been mitigated on the county-level as well. 
+
+#### Limitatons
+
+Though the econometric model (1) controlled for as much as bias as possible to obtain an unbiased estimate for $\beta_1$, the model suffers from missing data in $X$. Though the NYT's public database is one of the most up to date data bases on per-county COVID mortalities, some counties were marked as "unknown", due to some state health department procedures. In addition, as mentioned earlier, several geographical exceptions made it impractical to measure the impact of per-county COVID-19 mortalities on housing prices for larger jurisdictions that cover multiple counties such as New York and Kansas City. In the cases where multiple counties or other non-county geographies were grouped as a single county, the fips code was dropped making it impractical to join with per-county housing price data.
+
+Additionally, housing price indices were aggregated over the county-specific zip-codes and computed as a mean for each county. A future analysis would weight these HPIs by the population weights in each zip code. This analysis assumes each zip code is weighted equally in population.
+
+## Appendix
+
+#### A.1 {#a1}
+
+I determined a sufficient # of lags ($P$) for the lagged effects on $\text{HPI}_{sct=2021}$ by regressing $\text{HPI}_{sct=2021}$ on $\text{HPI}_{sct-1},...,\text{HPI}_{sct-P}$ until the last the regression coefficient, $\delta_{P}$, was no longer significant for a chosen level of significance, $\alpha$. Let $\alpha=0.1$
+
+```{r echo=F}
+housing.prices.reshape = housing.prices %>% 
+  select(zip, year, hpi) %>%
+    pivot_wider(names_from = year, values_from = hpi, 
+                names_glue="{.value}_{year}")
+housing.prices.reshape[colnames(housing.prices.reshape)
+                       [colSums(is.na(housing.prices.reshape)) > 0]] ->
+  housing.prices.reshape
+
+hpi.years = rev(setdiff(colnames(housing.prices.reshape)
+                        [str_detect(colnames(housing.prices.reshape), "hpi")],
+                    c("hpi_2022", "hpi_2021")))
+
+deltas = c()
+alpha = 0.1
+significant = T
+index = 1
+while(significant){
+  hpi.year.lm = lm(hpi_2021 ~ ., housing.prices.reshape[c("hpi_2021",
+                                                          hpi.years[1:index])])
+  deltas = c(deltas, summary(hpi.year.lm)$coefficients[2])
+  significant = all(summary(hpi.year.lm)$coefficients[2:(index+1),"Pr(>|t|)"] 
+                    < alpha)
+  index = index + 1
+}
+
+ggplot(mapping=aes(x=1:(index-1), y=deltas))+
+  geom_point()+
+  geom_line()+
+  ylab(expression(delta[P]))+
+  xlab("Cumulative (P) Lags (Years Before 2021)")+
+  labs(title="Cumulative Lagged Effect on 2021 HPI")+
+  theme_minimal()
+```
+
+Hence, let $P=6$.
+
+#### A.2 {#a2}
+
+Full regression output for estimates on (1). (See also [log file](https://github.com/SamLeeBYU/CovidMortality/blob/main/Log/analysis_log.txt))
+
+```{r echo=F}
+covid.table %>%
+  knitr::kable()
+```
