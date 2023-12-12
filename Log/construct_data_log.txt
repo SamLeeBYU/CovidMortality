@@ -3,7 +3,7 @@
        log:  C:\Users\slee039\Dropbox\ECON 388\Data Assignment 3\Scripts\construct_data_log.t
 > xt
   log type:  text
- opened on:  11 Dec 2023, 17:52:21
+ opened on:  11 Dec 2023, 18:54:29
 
 . clear
 
@@ -184,8 +184,8 @@ file ../Data/housing_prices_full.csv saved
 year: all characters numeric; replaced as int
 
 . //Only keep the lag variables in the model
-. keep if year >= 2017 & year <= 2021
-(35,024 observations deleted)
+. keep if year >= 2015 & year <= 2021
+(33,266 observations deleted)
 
 . 
 . //Reshape the data so we can to a m:1 merge later with zip-county crosswalk
@@ -193,15 +193,15 @@ year: all characters numeric; replaced as int
 . sort zip year
 
 . reshape wide hpi, i(zip) j(year)
-(j = 2017 2018 2019 2020 2021)
+(j = 2015 2016 2017 2018 2019 2020 2021)
 
 Data                               Long   ->   Wide
 -----------------------------------------------------------------------------
-Number of observations            4,395   ->   879         
-Number of variables                   3   ->   6           
-j variable (5 values)              year   ->   (dropped)
+Number of observations            6,153   ->   879         
+Number of variables                   3   ->   8           
+j variable (7 values)              year   ->   (dropped)
 xij variables:
-                                    hpi   ->   hpi2017 hpi2018 ... hpi2021
+                                    hpi   ->   hpi2015 hpi2016 ... hpi2021
 -----------------------------------------------------------------------------
 
 . 
@@ -293,5 +293,5 @@ file ../Data/covid_housing.csv saved
        log:  C:\Users\slee039\Dropbox\ECON 388\Data Assignment 3\Scripts\construct_data_log.t
 > xt
   log type:  text
- closed on:  11 Dec 2023, 17:52:27
+ closed on:  11 Dec 2023, 18:54:35
 ---------------------------------------------------------------------------------------------

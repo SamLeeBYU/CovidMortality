@@ -96,7 +96,7 @@ export delimited using "../Data/housing_prices_full.csv", replace
 
 destring year, replace
 //Only keep the lag variables in the model
-keep if year >= 2017 & year <= 2021
+keep if year >= 2015 & year <= 2021
 
 //Reshape the data so we can to a m:1 merge later with zip-county crosswalk
 //We need to have each lagged HPI variable as its own column vector

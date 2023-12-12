@@ -1,5 +1,13 @@
 ## Scripts
 
+#### [construct-data.do](Scripts/construct-data.do)
+
+This STATA script takes the four raw data sets ([us-counties-2020.csv](Data/us-counties-2020.csv), [co-est2022-pop.xlsx](Data/co-est2022-pop.xlsx), [HPI_AT_BDL_ZIP3.xlsx](Data/HPI_AT_BDL_ZIP3.xlsx), [zip-county.csv](Data/zip-county.csv)) and merges it into the final data set that will be used for the final econometric analysis.
+
+#### [analysis.do](Scripts/analysis.do)
+
+This STATA script runs the appropriate regression to estimate the effect that COVID-19 mortality rates had on per county housing rates.
+
 #### [zip-county.py](Scripts/zip-county.py)
 
 This script accesses the ZIP-County Crosswalk database using HUD's API and creates [zip-county.csv](Data/zip-county.csv).
@@ -21,3 +29,7 @@ Housing price indices at the 3-digit ZIP level for 2021 was obtained through dat
 #### ZIP-County Crosswalk ([zip-county.csv](Data/zip-county.csv))
 
 The data that matches which ZIP codes belong appropriately in which counties for 2021 was obtained through the U.S. Department of Housing and Urban Development's database: [https://www.huduser.gov/portal/datasets/usps_crosswalk.html](https://www.huduser.gov/portal/datasets/usps_crosswalk.html).
+
+---
+
+All other files in the **Data** directory are intermediate files that come as a result of running [construct-data.do](Scripts/construct-data.do) or [zip-county.py](Scripts/zip-county.py).
