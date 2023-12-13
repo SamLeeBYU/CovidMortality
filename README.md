@@ -13,12 +13,23 @@ The conclusions and methodology for this analysis can be read [here](memo.pdf)
 
 ## Reproduce the Results:
 1) Clone the repository
-2) Run [Scripts/analysis.do](Scripts/analysis.do).
+- Run the following command in the your directory of choice
+```
+git clone "https://github.com/SamLeeBYU/CovidMortality"
+```
+2) Navigate to the Scripts directory within project directory in STATA
+```
+cd "CovidMortality/Scripts"
+```
+3) Run [analysis.do](Scripts/analysis.do) in STATA.
+```
+do analysis.do
+```
 - This will simultaneously call [construct_data.do](Scripts/construct-data.do), which will merge the four necessary [data files](#data-sources). The analysis.do script will then run the regression and output the results to a log file called [analysis_log.txt](Log/analysis_log.txt).
 
-NOTE: [zip-county.csv](Data/zip-county.csv) is a file created by calling the python script, [zip-county.py](Scripts/zip-county.py). This uses HUD's ZIP-County Crosswalk [API](https://www.huduser.gov/portal/dataset/uspszip-api.html).
+NOTE: [zip-county.csv](Data/zip-county.csv) is a file created by calling the python script, [zip-county.py](Scripts/zip-county.py). This uses HUD's ZIP-County Crosswalk [API](https://www.huduser.gov/portal/dataset/uspszip-api.html). If you are not cloning this repository from step (1), you will first need to run [zip-county.py](Scripts/zip-county.py) first to generate [zip-county.csv](Data/zip-county.csv) in addition to downloading the raw files before running 
 
-Alternatively the final output file created by [construct_data.do](Scripts/construct-data.do) is [covid_housing.csv](Data/covid_housing.csv). Results can also be duplicated by manually running a regression using the variables defined in that file.
+Alternatively the final output file created by [construct_data.do](Scripts/construct-data.do) is [covid_housing.csv](Data/covid_housing.csv). Results can also be duplicated by manually running a regression using any statistical framework using the variables defined in that file (see [memo.pdf](memo.pdf) for econometric model).
 
 ## Scripts
 
