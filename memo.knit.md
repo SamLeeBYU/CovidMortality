@@ -5,14 +5,8 @@ format: pdf
 editor: visual
 ---
 
-```{r setup, include=FALSE}
-library(tidyverse)
-library(gridExtra)
 
-covid.housing = read_csv("Data/covid_housing.csv")
 
-housing.prices = read_csv("Data/housing_prices_full.csv")
-```
 
 ## Introduction
 
@@ -28,77 +22,54 @@ I then merged per-county housing prices to with the mortality data. To do this, 
 
 Additionally, $6$ lag variables on the 2021 HPI were constructed using The housing prices data. (See [A.1](#a1) for the selection process for the number of lag variables).
 
-Merging the housing prices data set with the mortality data set yields the final data set for the econometric analysis: The response variable $\text{HPI}_{2021}$ will be measured on the independent metric of interest, $\text{Mortality Rate}$ for each county, and this will be controlled for using a series of state dummy variables and the $6$ lag variables on $\text{HPI}_{2021}$. This data set yielded a sample size = `r nrow(covid.housing)-8` counties with $n = 50$ states.
+Merging the housing prices data set with the mortality data set yields the final data set for the econometric analysis: The response variable $\text{HPI}_{2021}$ will be measured on the independent metric of interest, $\text{Mortality Rate}$ for each county, and this will be controlled for using a series of state dummy variables and the $6$ lag variables on $\text{HPI}_{2021}$. This data set yielded a sample size = 3113 counties with $n = 50$ states.
 
 #### Exploratory Data Analysis
 
 Summary Statistics of Key Numeric Variables:
 
-```{r echo=F}
-covid.factors = c(str_c("hpi", 2015:2021), "mortality_rate")
 
-formatted.factors <- gsub("_", " ", covid.factors)
-formatted.factors <- gsub("hpi", "HPI ", formatted.factors)
-formatted.factors <- tools::toTitleCase(formatted.factors)
+::: {.cell}
+::: {.cell-output-display}
+|Variable       |   Mean| Median|     SD|    Min|     Max|
+|:--------------|------:|------:|------:|------:|-------:|
+|HPI 2015       | 140.88| 136.14|  24.76|  85.82|  348.52|
+|HPI 2016       | 145.87| 140.07|  25.17|  90.43|  322.69|
+|HPI 2017       | 151.83| 144.78|  26.31|  97.95|  319.03|
+|HPI 2018       | 158.83| 151.28|  28.06| 104.95|  334.27|
+|HPI 2019       | 165.68| 157.21|  30.07| 110.39|  357.13|
+|HPI 2020       | 171.50| 162.37|  31.38| 115.14|  367.03|
+|HPI 2021       | 189.67| 178.99|  36.41| 127.46|  374.60|
+|Mortality Rate | 102.08|  70.60| 103.19|   0.00| 1062.03|
+:::
+:::
 
-tibble(
-  Variable = formatted.factors,
-  Mean = sapply(covid.factors, function(x)mean(covid.housing[[x]], na.rm=T)) %>% round(2),
-  Median = sapply(covid.factors, function(x)median(covid.housing[[x]], na.rm=T)) %>% round(2),
-  SD = sapply(covid.factors, function(x)sd(covid.housing[[x]], na.rm=T)) %>% round(2),
-  Min = sapply(covid.factors, function(x)min(covid.housing[[x]], na.rm=T)) %>% round(2),
-  Max = sapply(covid.factors, function(x)max(covid.housing[[x]], na.rm=T)) %>% round(2)
-) %>% knitr::kable()
-```
 
 How COVID-19 Mortality Rates Compare Against $\text{HPI}_{2021}$
 
-```{r echo=F, warning=F}
-p1 = covid.housing %>% ggplot()+
-  geom_boxplot(aes(y=hpi2021))+
-  ylab(expression(HPI[2021]))+
-  theme_minimal()
-p2 = covid.housing %>% ggplot()+
-  geom_boxplot(aes(y=mortality_rate))+
-  theme_minimal()+
-  ylab("Mortality Rate (Deaths per 1,000")
-grid.arrange(p1, p2, ncol=2)
-```
 
-```{r echo=F, warning=FALSE, message=F}
-covid.housing %>% ggplot(mapping=aes(x=mortality_rate, y=hpi2021))+
-  geom_point()+
-  geom_smooth(color="#FDB863", se=F, method="lm")+
-  xlab("Mortality Rate (Deaths per 1,000)")+
-  ylab(expression(HPI[2021]))+
-  theme_minimal()+
-  labs(title="2020 COVID-19 Mortality vs. 2021 HPI")
-```
+::: {.cell}
+::: {.cell-output-display}
+![](memo_files/figure-pdf/unnamed-chunk-2-1.pdf)
+:::
+:::
+
+::: {.cell}
+::: {.cell-output-display}
+![](memo_files/figure-pdf/unnamed-chunk-3-1.pdf)
+:::
+:::
+
 
 Initial trends indicate that there's a general negative trend between mortality rate and $\text{HPI}_{2021}$.
 
-```{r fig.width=8, fig.height=8, echo=F, warning=F}
-covid.housing %>%
-  select(state, hpi2021, mortality_rate) %>% group_by(state) %>% summarize(
-    state = first(state),
-    hpi2021 = mean(hpi2021),
-    mortality_rate = mean(mortality_rate)
-  ) %>%
-  pivot_longer(cols = c("hpi2021", "mortality_rate"), 
-               values_to = "value", 
-               names_to = "label") %>%
-  ggplot(aes(state, value, fill = label)) +
-  geom_bar(stat = "identity", position = position_dodge(width = 0.9)) +
-  labs(title="Mean HPI and Mortality Rates Across States", y = "", x='State') +
-  theme_minimal() +
-  theme(legend.position = "top") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
-  theme(legend.title = element_blank()) +
-  scale_fill_manual(name = "Legend", 
-                    values = c("hpi2021" = "#FDB863", "mortality_rate" = "#B2ABD2"),
-                    labels = c("hpi2021" = "Mean HPI 2021", "mortality_rate" = "Mean Mortality Rate (Deaths per 1,000)"))
 
-```
+::: {.cell}
+::: {.cell-output-display}
+![](memo_files/figure-pdf/unnamed-chunk-4-1.pdf)
+:::
+:::
+
 
 This demonstrates the variability between states' $\text{HPI}_{2021}$ and COVID-19 mortality rates. The fact that the proportion of $\text{HPI}_{2021}$ and mortality rate varies drastically depending on state indicates that both mortality and $\text{HPI}_{2021}$ may depend on the state and state-specific policies. In econometric terms, we need to include state-specific fixed effects in our econometric model in order to further satisfy $E[\epsilon|X]=0$
 
@@ -120,36 +91,17 @@ Since we include only $n-1$ dummy variables for $n$ \# of states, $X'X$ will be 
 
 Using OLS to estimate $\beta_1$, we arrived at the following estimate (see [A.2](#a2) for full model output):
 
-```{r echo=F}
-covid.housing %>% mutate(
-  state = as.factor(state)
-) -> covid.housing
-covid.factors = c("mortality_rate", str_c("hpi", 2015:2021), "state")
-covid.lm = lm(hpi2021 ~ ., covid.housing[covid.factors])
-covid.table = summary(covid.lm)$coefficients %>% 
-  as_tibble()
-covid.table$Coefficient = covid.lm$coefficients %>% names()
-covid.table$Coefficient = gsub("hpi", "HPI ", covid.table$Coefficient)
-covid.table$Coefficient = str_replace(covid.table$Coefficient, "mortality_rate", "Mortality Rate")
-covid.table$Coefficient = gsub("state", "", covid.table$Coefficient)
-covid.table %>% setNames(c("Estimate", "Std. Error", "T.Value", "P.Value", "Coefficient")) -> covid.table
 
-covid.table %>% mutate(
-    Estimate = round(Estimate, 5),
-    `Std. Error` = round(`Std. Error`, 8),
-    T.Value = round(T.Value, 5),
-    P.Value = format(round(P.Value, 8), scientific=F)
-) -> covid.table
+::: {.cell}
+::: {.cell-output-display}
+|Coefficient    | Estimate| Std. Error|  T.Value|P.Value    |   2.5 %|  97.5 %|
+|:--------------|--------:|----------:|--------:|:----------|-------:|-------:|
+|Mortality Rate |  -0.0031|  0.0006105| -5.07407|0.00000041 | -0.0043| -0.0019|
+:::
+:::
 
-covid.table[c("Coefficient", "Estimate", "Std. Error", "T.Value", "P.Value")] -> covid.table
 
-cbind(covid.table, round(confint(covid.lm), 5) %>% as_tibble()) -> covid.table
-
-covid.table %>% filter(Coefficient == "Mortality Rate") %>%
-  knitr::kable()
-```
-
-Adjusted $R^2$ = `r summary(covid.lm)$adj.r.squared`
+Adjusted $R^2$ = 0.9936818
 
 Controlling for the a state-fixed effects and lagged effects on $\text{HPI}_{sct=2021}$, the estimate for $\beta_1$ was found to be highly significant and negative.
 
@@ -173,40 +125,13 @@ Additionally, housing price indices were aggregated over the county-specific zip
 
 I determined a sufficient \# of lags ($P$) for the lagged effects on $\text{HPI}_{sct=2021}$ by regressing $\text{HPI}_{sct=2021}$ on $\text{HPI}_{sct-1},...,\text{HPI}_{sct-P}$ until the last the regression coefficient, $\delta_{P}$, was no longer significant for a chosen level of significance, $\alpha$. Let $\alpha=0.1$
 
-```{r echo=F}
-housing.prices.reshape = housing.prices %>% 
-  select(zip, year, hpi) %>%
-    pivot_wider(names_from = year, values_from = hpi, 
-                names_glue="{.value}_{year}")
-housing.prices.reshape[colnames(housing.prices.reshape)
-                       [colSums(is.na(housing.prices.reshape)) > 0]] ->
-  housing.prices.reshape
 
-hpi.years = rev(setdiff(colnames(housing.prices.reshape)
-                        [str_detect(colnames(housing.prices.reshape), "hpi")],
-                    c("hpi_2022", "hpi_2021")))
+::: {.cell}
+::: {.cell-output-display}
+![](memo_files/figure-pdf/unnamed-chunk-6-1.pdf)
+:::
+:::
 
-deltas = c()
-alpha = 0.1
-significant = T
-index = 1
-while(significant){
-  hpi.year.lm = lm(hpi_2021 ~ ., housing.prices.reshape[c("hpi_2021",
-                                                          hpi.years[1:index])])
-  deltas = c(deltas, summary(hpi.year.lm)$coefficients[2])
-  significant = all(summary(hpi.year.lm)$coefficients[2:(index+1),"Pr(>|t|)"] 
-                    < alpha)
-  index = index + 1
-}
-
-ggplot(mapping=aes(x=1:(index-1), y=deltas))+
-  geom_point()+
-  geom_line()+
-  ylab(expression(delta[P]))+
-  xlab("Cumulative (P) Lags (Years Before 2021)")+
-  labs(title="Cumulative Lagged Effect on 2021 HPI")+
-  theme_minimal()
-```
 
 Hence, let $P=6$.
 
@@ -214,7 +139,68 @@ Hence, let $P=6$.
 
 Full regression output for estimates on (1). (See also [log file](https://github.com/SamLeeBYU/CovidMortality/blob/main/Log/analysis_log.txt))
 
-```{r echo=F}
-covid.table %>%
-  knitr::kable()
-```
+
+::: {.cell}
+::: {.cell-output-display}
+|Coefficient          | Estimate| Std. Error|   T.Value|P.Value    |    2.5 %|   97.5 %|
+|:--------------------|--------:|----------:|---------:|:----------|--------:|--------:|
+|(Intercept)          |  9.08027|  0.6515312|  13.93682|0.00000000 |  7.80279| 10.35776|
+|Mortality Rate       | -0.00310|  0.0006105|  -5.07407|0.00000041 | -0.00430| -0.00190|
+|HPI 2015             | -0.35359|  0.0229598| -15.40042|0.00000000 | -0.39861| -0.30857|
+|HPI 2016             | -0.02682|  0.0452753|  -0.59248|0.55357000 | -0.11560|  0.06195|
+|HPI 2017             |  0.20687|  0.0430709|   4.80295|0.00000164 |  0.12242|  0.29132|
+|HPI 2018             | -0.13237|  0.0412066|  -3.21236|0.00133018 | -0.21317| -0.05157|
+|HPI 2019             | -0.59148|  0.0437516| -13.51910|0.00000000 | -0.67727| -0.50570|
+|HPI 2020             |  1.86692|  0.0324828|  57.47427|0.00000000 |  1.80323|  1.93061|
+|Alaska               |  0.87602|  0.7252829|   1.20783|0.22720542 | -0.54607|  2.29811|
+|Arizona              |  9.70355|  0.8636497|  11.23551|0.00000000 |  8.01015| 11.39694|
+|Arkansas             |  2.48756|  0.4915096|   5.06106|0.00000044 |  1.52384|  3.45128|
+|California           |  6.89466|  0.6093635|  11.31452|0.00000000 |  5.69985|  8.08946|
+|Colorado             |  2.87857|  0.5502238|   5.23163|0.00000018 |  1.79972|  3.95741|
+|Delaware             |  5.75894|  1.7115600|   3.36473|0.00077563 |  2.40302|  9.11487|
+|District of Columbia |  0.44122|  3.0003582|   0.14705|0.88309895 | -5.44171|  6.32414|
+|Florida              |  4.68318|  0.5734236|   8.16706|0.00000000 |  3.55885|  5.80752|
+|Georgia              |  0.42052|  0.4279287|   0.98268|0.32584226 | -0.41854|  1.25957|
+|Hawaii               |  5.58311|  1.4297505|   3.90495|0.00009628 |  2.77974|  8.38648|
+|Idaho                | 10.65327|  0.7255525|  14.68297|0.00000000 |  9.23065| 12.07589|
+|Illinois             |  0.17282|  0.4656942|   0.37110|0.71058516 | -0.74028|  1.08593|
+|Indiana              |  0.67766|  0.4708831|   1.43912|0.15021823 | -0.24562|  1.60094|
+|Iowa                 | -0.68887|  0.4729804|  -1.45645|0.14537018 | -1.61627|  0.23852|
+|Kansas               | -0.08220|  0.4611358|  -0.17825|0.85854226 | -0.98636|  0.82197|
+|Kentucky             |  0.40446|  0.4493046|   0.90018|0.36809361 | -0.47651|  1.28543|
+|Louisiana            | -0.76242|  0.5327908|  -1.43100|0.15253188 | -1.80709|  0.28224|
+|Maine                |  0.14863|  0.8118053|   0.18309|0.85473815 | -1.44310|  1.74037|
+|Maryland             |  4.10228|  0.7012481|   5.84996|0.00000001 |  2.72731|  5.47724|
+|Massachusetts        |  2.26367|  0.8603208|   2.63120|0.00855122 |  0.57681|  3.95054|
+|Michigan             |  0.69564|  0.4874590|   1.42707|0.15366069 | -0.26014|  1.65142|
+|Minnesota            |  1.33058|  0.4866585|   2.73410|0.00629108 |  0.37636|  2.28479|
+|Mississippi          | -0.22151|  0.4857819|  -0.45599|0.64842859 | -1.17400|  0.73098|
+|Missouri             |  2.29708|  0.4503887|   5.10021|0.00000036 |  1.41398|  3.18017|
+|Montana              |  9.33223|  0.6064473|  15.38836|0.00000000 |  8.14314| 10.52131|
+|Nebraska             |  0.49024|  0.4842142|   1.01245|0.31140438 | -0.45918|  1.43966|
+|Nevada               |  7.79373|  0.8445802|   9.22794|0.00000000 |  6.13773|  9.44974|
+|New Hampshire        |  1.98369|  0.9927911|   1.99809|0.04579509 |  0.03708|  3.93029|
+|New Jersey           |  3.80694|  0.7612258|   5.00107|0.00000060 |  2.31437|  5.29951|
+|New Mexico           | -0.03753|  0.6253614|  -0.06001|0.95215054 | -1.26370|  1.18864|
+|New York             |  2.84983|  0.5398307|   5.27911|0.00000014 |  1.79136|  3.90830|
+|North Carolina       |  3.08102|  0.4630017|   6.65445|0.00000000 |  2.17320|  3.98885|
+|North Dakota         |  2.18345|  0.6718277|   3.25001|0.00116651 |  0.86617|  3.50073|
+|Ohio                 | -0.90850|  0.4762208|  -1.90773|0.05651970 | -1.84225|  0.02524|
+|Oklahoma             |  2.55833|  0.4972734|   5.14471|0.00000028 |  1.58330|  3.53335|
+|Oregon               |  5.49660|  0.6729647|   8.16774|0.00000000 |  4.17709|  6.81611|
+|Pennsylvania         |  1.16220|  0.5061576|   2.29612|0.02173633 |  0.16976|  2.15464|
+|Rhode Island         |  2.69825|  1.3474705|   2.00246|0.04532383 |  0.05621|  5.34029|
+|South Carolina       |  1.52320|  0.5600854|   2.71959|0.00657320 |  0.42502|  2.62139|
+|South Dakota         |  2.32386|  0.5424788|   4.28379|0.00001894 |  1.26020|  3.38752|
+|Tennessee            |  4.61973|  0.4815199|   9.59405|0.00000000 |  3.67559|  5.56386|
+|Texas                |  2.58799|  0.4423724|   5.85026|0.00000001 |  1.72062|  3.45537|
+|Utah                 | 10.62956|  0.6978804|  15.23121|0.00000000 |  9.26120| 11.99792|
+|Vermont              |  0.94603|  0.8657926|   1.09268|0.27462088 | -0.75156|  2.64363|
+|Virginia             |  2.44825|  0.4504892|   5.43464|0.00000006 |  1.56496|  3.33154|
+|Washington           |  4.22278|  0.6794959|   6.21458|0.00000000 |  2.89047|  5.55510|
+|West Virginia        |  0.55756|  0.5466830|   1.01990|0.30785529 | -0.51434|  1.62947|
+|Wisconsin            |  0.32255|  0.5009011|   0.64393|0.51966771 | -0.65959|  1.30468|
+|Wyoming              |  4.29918|  0.7469335|   5.75577|0.00000001 |  2.83464|  5.76372|
+:::
+:::
+
