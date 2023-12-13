@@ -8,6 +8,7 @@ editor: visual
 ```{r setup, include=FALSE}
 library(tidyverse)
 library(gridExtra)
+library(ggfortify)
 
 covid.housing = read_csv("Data/covid_housing.csv")
 
@@ -26,7 +27,7 @@ NOTE: Due to the jurisdiction of large cities such as Kansas City and New York C
 
 I then merged per-county housing prices to with the mortality data. To do this, I used zip-level housing price data (see [HPI_AT_BDL_ZIP3.xlsx](https://github.com/SamLeeBYU/CovidMortality/blob/main/Data/HPI_AT_BDL_ZIP3.xlsx)) maintained by the Federal Finance Housing Agency (FHFA) (<https://www.fhfa.gov/DataTools/Downloads/Pages/House-Price-Index-Datasets.aspx>) and merged it with data that mapped zip-codes in 2021 to the corresponding counties. I used HUD's ZIP-County Crosswalk [API](https://www.huduser.gov/portal/dataset/uspszip-api.html) to obtain the zip codes that correspond to each county. The Python script, [zip-county.py](https://github.com/SamLeeBYU/CovidMortality/blob/main/Scripts/zip-county.py), uses this API to compile [zip-county.csv](https://github.com/SamLeeBYU/CovidMortality/blob/main/Data/zip-county.csv). After combining these two data sets, the housing prices was condensed to create an average HPI (housing price index) for each county consisting of the HPIs from each zip code in each county. For the purposes of this analysis, to control for inflation, the HPI that's been adjusted for inflation using 2000 year as a base year was used instead of raw HPI. From here on out in this analysis, HPI will be used to refer to as this HPI that's been adjusted for inflation using 2000 as the base year.
 
-Additionally, $6$ lag variables on the 2021 HPI were constructed using The housing prices data. (See [A.1](#a1) for the selection process for the number of lag variables).
+Additionally, $6$ lag variables on the 2021 HPI were constructed using The housing prices data.
 
 Merging the housing prices data set with the mortality data set yields the final data set for the econometric analysis: The response variable $\text{HPI}_{2021}$ will be measured on the independent metric of interest, $\text{Mortality Rate}$ for each county, and this will be controlled for using a series of state dummy variables and the $6$ lag variables on $\text{HPI}_{2021}$. This data set yielded a sample size = `r nrow(covid.housing)-8` counties with $n = 50$ states.
 
@@ -106,7 +107,7 @@ This demonstrates the variability between states' $\text{HPI}_{2021}$ and COVID-
 
 It is hypothesized that there are unobserved effects in the data that are dependent upon each state ($s$) such that for each county ($c$) that we wish to estimate the COVID-19 mortality effect on per-county housing prices in 2021 ($\text{HPI}_{2021}$), the error term ($\epsilon$) can thus be represented by $\epsilon_{sc}=\alpha_s+\eta_{st}$. We will remedy this issue by using a fixed effects model by including $n-1$ dummy variables for $n$ states.
 
-Furthermore, due to the lagged effects in the model, the theoretical model incorporates some time effect $t$, where $t$ is the specified year. Including these lagged effects in the econometric model will make the estimate for the coefficient on COVID-19 mortality less biased since it will be ridden from the time-trends in HPI that occur due to the nature of time-series dependent data. Excluding the lags from model will likely lead to a biased coefficient on the estimated effect for mortality, as it would have encapsulated the effects of the lagged variables in $\eta_{sc}$ which would have otherwise been controlled for in the model. Since $\text{HPI}_{2021}$ is significantly dependent upon $\text{HPI}_{2021-1},...,\text{HPI}_{2021-P}$ (as shown in [A.1](#a1)), where $P$ is the number of lags in the model (in this analysis we let $P=6$), then since $\delta_p > 0 \quad \forall p \in \{1,...,P\}$, then the coefficient for mortality will be **overestimated** *if* the lag variables are excluded from the model.
+Furthermore, due to the lagged effects in the model, the theoretical model incorporates some time effect $t$, where $t$ is the specified year. Including these lagged effects in the econometric model will make the estimate for the coefficient on COVID-19 mortality less biased since it will be ridden from the time-trends in HPI that occur due to the nature of time-series dependent data. Excluding the lags from model will likely lead to a biased coefficient on the estimated effect for mortality, as it would have encapsulated the effects of the lagged variables in $\eta_{sc}$ which would have otherwise been controlled for in the model. Since $\text{HPI}_{2021}$ is significantly dependent upon $\text{HPI}_{2021-1},...,\text{HPI}_{2021-P}$, where $P$ is the number of lags in the model (in this analysis we let $P=6$), then since $\delta_p > 0 \quad \forall p \in \{1,...,P\}$, then the coefficient for mortality will be **overestimated** *if* the lag variables are excluded from the model.
 
 Hence, for year $t$, state $s$, and county $c$, we wish to estimate for $n$ \# of states,
 
@@ -116,9 +117,11 @@ Where $\beta_1$ is the parameter of interest. Since we are only interested in th
 
 Since we include only $n-1$ dummy variables for $n$ \# of states, $X'X$ will be full rank and thus invertible. Since we control for state effects using a fixed effects model we further satisfy the assumption that $E[\eta_{sc}|X]=0$. This assumption is more reasonably satisfied with the inclusion of lagged effects on $\text{HPI}_{sct=2021}$. Since these lagged effects significantly affect the main response, $\text{HPI}_{sct=2021}$, including them in the model will isolate the estimated causal effect for $\beta_1$.
 
+Furthermore, we assume that COVID-19 mortality rates for all counties in each state are independent of another such that $\eta_{st} \overset{\text{iid}}{\sim} N(0,1)$.
+
 ## Findings
 
-Using OLS to estimate $\beta_1$, we arrived at the following estimate (see [A.2](#a2) for full model output):
+Using OLS to estimate $\beta_1$, we arrived at the following estimate (see [A.1](#a1) for full model output):
 
 ```{r echo=F}
 covid.housing %>% mutate(
@@ -169,48 +172,48 @@ Additionally, housing price indices were aggregated over the county-specific zip
 
 ## Appendix
 
+<!-- #### A.0 {#a0} -->
+
+<!-- I determined a sufficient \# of lags ($P$) for the lagged effects on $\text{HPI}_{sct=2021}$ by regressing $\text{HPI}_{sct=2021}$ on $\text{HPI}_{sct-1},...,\text{HPI}_{sct-P}$ until the last the regression coefficient, $\delta_{P}$, was no longer significant for a chosen level of significance, $\alpha$. Let $\alpha=0.1$ -->
+
+<!-- ```{r echo=F} -->
+<!-- housing.prices.reshape = housing.prices %>%  -->
+<!--   select(zip, year, hpi) %>% -->
+<!--     pivot_wider(names_from = year, values_from = hpi,  -->
+<!--                 names_glue="{.value}_{year}") -->
+<!-- housing.prices.reshape[colnames(housing.prices.reshape) -->
+<!--                        [colSums(is.na(housing.prices.reshape)) > 0]] -> -->
+<!--   housing.prices.reshape -->
+
+<!-- hpi.years = rev(setdiff(colnames(housing.prices.reshape) -->
+<!--                         [str_detect(colnames(housing.prices.reshape), "hpi")], -->
+<!--                     c("hpi_2022", "hpi_2021"))) -->
+
+<!-- deltas = c() -->
+<!-- alpha = 0.1 -->
+<!-- significant = T -->
+<!-- index = 1 -->
+<!-- while(significant){ -->
+<!--   hpi.year.lm = lm(hpi_2021 ~ ., housing.prices.reshape[c("hpi_2021", -->
+<!--                                                           hpi.years[1:index])]) -->
+<!--   deltas = c(deltas, summary(hpi.year.lm)$coefficients[index]) -->
+<!--   significant = all(summary(hpi.year.lm)$coefficients[2:(index+1),"Pr(>|t|)"]  -->
+<!--                     < alpha) -->
+<!--   index = index + 1 -->
+<!-- } -->
+
+<!-- ggplot(mapping=aes(x=1:(index-1), y=deltas))+ -->
+<!--   geom_point()+ -->
+<!--   geom_line()+ -->
+<!--   ylab(expression(delta[P]))+ -->
+<!--   xlab("Cumulative (P) Lags (Years Before 2021)")+ -->
+<!--   labs(title="Cumulative Lagged Effect on 2021 HPI")+ -->
+<!--   theme_minimal() -->
+<!-- ``` -->
+
+<!-- Hence, let $P=6$. -->
+
 #### A.1 {#a1}
-
-I determined a sufficient \# of lags ($P$) for the lagged effects on $\text{HPI}_{sct=2021}$ by regressing $\text{HPI}_{sct=2021}$ on $\text{HPI}_{sct-1},...,\text{HPI}_{sct-P}$ until the last the regression coefficient, $\delta_{P}$, was no longer significant for a chosen level of significance, $\alpha$. Let $\alpha=0.1$
-
-```{r echo=F}
-housing.prices.reshape = housing.prices %>% 
-  select(zip, year, hpi) %>%
-    pivot_wider(names_from = year, values_from = hpi, 
-                names_glue="{.value}_{year}")
-housing.prices.reshape[colnames(housing.prices.reshape)
-                       [colSums(is.na(housing.prices.reshape)) > 0]] ->
-  housing.prices.reshape
-
-hpi.years = rev(setdiff(colnames(housing.prices.reshape)
-                        [str_detect(colnames(housing.prices.reshape), "hpi")],
-                    c("hpi_2022", "hpi_2021")))
-
-deltas = c()
-alpha = 0.1
-significant = T
-index = 1
-while(significant){
-  hpi.year.lm = lm(hpi_2021 ~ ., housing.prices.reshape[c("hpi_2021",
-                                                          hpi.years[1:index])])
-  deltas = c(deltas, summary(hpi.year.lm)$coefficients[2])
-  significant = all(summary(hpi.year.lm)$coefficients[2:(index+1),"Pr(>|t|)"] 
-                    < alpha)
-  index = index + 1
-}
-
-ggplot(mapping=aes(x=1:(index-1), y=deltas))+
-  geom_point()+
-  geom_line()+
-  ylab(expression(delta[P]))+
-  xlab("Cumulative (P) Lags (Years Before 2021)")+
-  labs(title="Cumulative Lagged Effect on 2021 HPI")+
-  theme_minimal()
-```
-
-Hence, let $P=6$.
-
-#### A.2 {#a2}
 
 Full regression output for estimates on (1). (See also [log file](https://github.com/SamLeeBYU/CovidMortality/blob/main/Log/analysis_log.txt))
 
