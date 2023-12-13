@@ -117,7 +117,7 @@ Where $\beta_1$ is the parameter of interest. Since we are only interested in th
 
 Since we include only $n-1$ dummy variables for $n$ \# of states, $X'X$ will be full rank and thus invertible. Since we control for state effects using a fixed effects model we further satisfy the assumption that $E[\eta_{sc}|X]=0$. This assumption is more reasonably satisfied with the inclusion of lagged effects on $\text{HPI}_{sct=2021}$. Since these lagged effects significantly affect the main response, $\text{HPI}_{sct=2021}$, including them in the model will isolate the estimated causal effect for $\beta_1$.
 
-Furthermore, we assume that COVID-19 mortality rates for all counties in each state are independent of another such that $\eta_{st} \overset{\text{iid}}{\sim} N(0,\sigma^2)$.
+Furthermore, we assume that COVID-19 mortality rates for all counties in each state are independent of another such that $\eta_{sc} \overset{\text{iid}}{\sim} N(0,\sigma^2)$.
 
 ## Findings
 
