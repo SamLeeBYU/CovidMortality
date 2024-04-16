@@ -13,7 +13,7 @@ The conclusions and methodology for this analysis can be read [here](memo.pdf)
 
 ## Reproduce the Results:
 1) Clone the repository
-- Run the following command in the your directory of choice
+- Run the following command in your directory of choice
 ```
 git clone "https://github.com/SamLeeBYU/CovidMortality"
 ```
